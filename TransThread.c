@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2007-2019 Eduard Timotei BUDULEA 
+Copyright (C) 2007-2019 Eduard Timotei BUDULEA
 
 This file is part of TransThread.h
 
@@ -16,10 +16,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <stddef.h>
-#include <errno.h>
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "TransThread.h"
 
@@ -31,14 +31,23 @@ typedef struct QueueSector{
     void * volatile items[];
 } QueueSector;
 
-void * readItem (Queue * const queue) {
+static void *readItemInternal(Queue * const queue) {
+    register QueueSector * const tmpRead = queue->read;
+    if (!tmpRead) return NULL;
+    if (tmpRead->readCursor < tmpRead->writeCursor)
+        return tmpRead->items[tmpRead->readCursor++];
+    if (tmpRead->readCursor < tmpRead->size) return NULL;
+    if (!tmpRead->nextSector) return NULL;
+    queue->read = tmpRead->nextSector;
+    return readItemInternal(queue);
+}
+
+void * readItem(Queue * const queue) {
     if (!queue || !queue->read) return NULL;
-    if (queue->read->readCursor < queue->read->writeCursor)
-        return queue->read->items[queue->read->readCursor++];
-    if (queue->read->readCursor < queue->read->size) return NULL;
-    if (!queue->read->nextSector) return NULL;
-    queue->read = queue->read->nextSector;
-    return readItem(queue);
+    queue->activeRead = 1;
+    register void * rez = readItemInternal(queue);
+    queue->activeRead = 0;
+    return rez;
 }
 
 typedef struct StackItem{
@@ -54,9 +63,10 @@ bool verifyLoop(StackItem const * const si) {
     return verifyLoop(&nsi);
 }
 
-bool verify(Queue * const queue) {
+bool verify(Queue const * const queue) {
     if (!queue) return false;
     if (!queue->writeHead && !queue->write && !queue->read) return true;
+    if (!queue->read && queue->writeHead == queue->write) return true;
     if (!queue->writeHead) return false;
     if (!queue->write) return false;
     if (!queue->read) return false;
@@ -77,7 +87,7 @@ bool verify(Queue * const queue) {
     return qs->readCursor <= qs->writeCursor && qs->writeCursor <= qs->size;
 }
 
-int writeItem (Queue * const queue, void * const item) {
+int writeItem(Queue * const queue, void * const item) {
     if (!queue) {
         errno = EINVAL;
         return -1;
@@ -86,12 +96,13 @@ int writeItem (Queue * const queue, void * const item) {
         errno = ENOMEM;
         return -1;
     }
-    assert (verify(queue));
+    assert(verify(queue));
     if (queue->write->writeCursor < queue->write->size) {
         queue->write->items[queue->write->writeCursor++] = item;
+        if (!queue->read) queue->read = queue->write;
         return 0;
     }
-    if (queue->writeHead == queue->read) {
+    if (queue->writeHead == queue->read || queue->writeHead == queue->write) {
         errno = ENOMEM;
         return -1;
     }
@@ -110,15 +121,22 @@ QueueSector * recoverSector(Queue * const queue) {
         errno = EINVAL;
         return NULL;
     }
-    assert (verify(queue));
-    if (queue->writeHead == queue->read) 
-        if (queue->read != queue->write
-                || queue->read->readCursor < queue->read->size)
-            return NULL;
+    assert(verify(queue));
+    if (!queue->writeHead) return NULL;
+    if (!queue->read
+            || (queue->read == queue->writeHead
+                && queue->writeHead == queue->write
+                && queue->read->readCursor == queue->read->writeCursor)) {
+        queue->read = NULL;
+        if (queue->activeRead) return NULL;
+        register QueueSector * const tmp = queue->writeHead;
+        queue->writeHead = queue->write = NULL;
+        return tmp;
+    }
+    if (queue->writeHead == queue->read) return NULL;
     register QueueSector * const tmp = queue->writeHead;
     queue->writeHead = tmp->nextSector;
-    if (!tmp->nextSector) tmp->nextSector = NULL;
-    else queue->read = queue->write = NULL;
+    tmp->nextSector = NULL;
     return tmp;
 }
 
@@ -137,7 +155,8 @@ int submitSector(Queue * const queue, void * const mem, size_t const size) {
     register QueueSector * const tmp = (QueueSector *)mem;
     tmp->readCursor = tmp->writeCursor = 0;
     tmp->nextSector = queue->writeHead;
-    if (queue->writeHead) queue->writeHead = tmp;
-    else queue->read = queue->writeHead = queue->write = tmp;
+    queue->writeHead = tmp;
+    if (!tmp->nextSector) queue->write = tmp;
+    if (!queue->read) queue->read = queue->write;
     return 0;
 }

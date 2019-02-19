@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2007-2019 Eduard Timotei BUDULEA 
+Copyright (C) 2007-2019 Eduard Timotei BUDULEA
 
 This file is part of TransThread.h
 
@@ -41,8 +41,8 @@ struct QueueSector;
  * If the queue has 0 or 1 sectors submitted it will end up into an empty and
  * full state on the same time.
  *
- * At creation the queue is with 0 sectors so it will be empty and full.
- * 
+ * At creation the queue is with 0 sectors so it will be empty an full.
+ *
  */
 typedef struct Queue {
     /**
@@ -59,24 +59,29 @@ typedef struct Queue {
      * The read cursor.
      * This member is handled by both read and write thread as follows:
      *  - if it is NULL: it can be written by the write thread and only read by the read thread.
-     *  - if it is not NULL and the queue is not semantically empty: it can be written by the read thread and only read by the write thread.
-     *  - if it is not NULL and the queue is semantically empty: it can put to NULL by the write thread and only read by the read thread.
+     *  - if it is not NULL: it can be written by the read thread and only read by the write thread.
      */
     struct QueueSector * volatile read;
+    /**
+     * A flag that recods reader activity.
+     * Is set to 1 by reader before reading the "read" field
+     * and reset to 0 by the reader after finishing work on the read QueueSector.
+     */
+    int volatile activeRead;
 } Queue;
 
 /** Creates of an empty queue. */
 static inline Queue mkQueue() {
-    Queue const tmp = {NULL, NULL, NULL};
+    Queue const tmp = {NULL, NULL, NULL, 0};
     return tmp;
 }
 
 /**
- * Reads an item from the queue.
+ * Reads next item from the queue.
  * If the queue is empty it will return NULL.
  * @param queue the queue that you want to get an item from.
  */
-void * readItem (Queue * const queue);
+void * readItem(Queue * const queue);
 
 /**
  * Writes an item into the queue, if there is space.
@@ -88,7 +93,7 @@ void * readItem (Queue * const queue);
  * @param item the item that you want to add to the queue.
  * @return On success 0, -1 otherwise.
  */
-int writeItem (Queue * const queue, void * const item);
+int writeItem(Queue * const queue, void * const item);
 
 /**
  * Submits a memory chunk that will become a 'QueueSector'.
@@ -104,6 +109,14 @@ int submitSector(Queue * const queue, void * const mem, size_t const size);
 
 /**
  * Tries to take out a sector if there is one empty.
+ *
+ * In normal operation is easy to pop an unused sector. If there are more
+ * sectors then one in total and if there is at least one sector free then
+ * for sure queue->writeHead is one of them, we will just pop it out.
+ *
+ * When there is only one sector in the queue and is empty:
+ *      - we set queue->read to NULL, to block the read thread to access the sector.
+ *      - we look at the queue->activeRead, to make sure that
  *
  * @param queue the queue from which to recover a sector.
  * @return the address of the sector, the address to the memory chunk that was
