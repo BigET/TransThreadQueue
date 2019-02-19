@@ -98,6 +98,11 @@ int writeItem(Queue * const queue, void * const item) {
         return -1;
     }
     assert(verify(queue));
+    if (queue->read == queue->write
+            || queue->write->writeCursor == queue->write->readCursor) {
+        queue->write->writeCursor = 0;
+        queue->write->readCursor = 0;
+    }
     if (queue->write->writeCursor < queue->write->size) {
         queue->write->items[queue->write->writeCursor++] = item;
         if (!queue->read) queue->read = queue->write;

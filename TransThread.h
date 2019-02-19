@@ -89,6 +89,10 @@ void * readItem(Queue * const queue);
  * from "writeHead".
  *
  * In case of queue being full will return error with ENOMEM.
+ *
+ * If the queue is empty it will reset the counters of the write sector to
+ * the begining. So it will recycle sectors less often making the queue viable
+ * even with only one sector inside. But you should submit at least 2 sectors.
  * @param queue the queue to which to add a sector.
  * @param item the item that you want to add to the queue.
  * @return On success 0, -1 otherwise.
