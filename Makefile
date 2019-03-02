@@ -1,3 +1,5 @@
+CFLAGS+=-O0 -ggdb
+
 all: test
 clean:
 	rm -f *.o libcoro/*.o
