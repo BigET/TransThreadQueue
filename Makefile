@@ -1,3 +1,4 @@
+CPPFLAGS+=-DUSE_CORO_TEST
 CFLAGS+=-O0 -ggdb
 
 all: test
