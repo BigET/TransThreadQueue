@@ -23,6 +23,18 @@ along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "TransThread.h"
 
+#ifdef USE_CORO_TEST
+
+void yield_read();
+void yield_write();
+
+#else
+
+#define yield_read() 
+#define yield_write() 
+
+#endif
+
 typedef struct QueueSector{
     int const size;
     int volatile readCursor;
@@ -33,21 +45,34 @@ typedef struct QueueSector{
 
 void * readItem(Queue * const queue) {
     if (!queue || !queue->read) return NULL;
+    yield_read();
     queue->activeRead = 1;
+    yield_read();
     register void * rez = NULL;
     register QueueSector * tmpRead = queue->read;
+    yield_read();
     while (tmpRead) {
         if (tmpRead->readCursor < tmpRead->writeCursor) {
+            yield_read();
             rez = tmpRead->items[tmpRead->readCursor];
+            yield_read();
             ++tmpRead->readCursor;
+            yield_read();
             break;
         }
+        yield_read();
         if (tmpRead->readCursor < tmpRead->size) break;
+        yield_read();
         if (!tmpRead->nextSector) break;
+        yield_read();
         queue->read = tmpRead->nextSector;
+        yield_read();
         tmpRead = queue->read;
+        yield_read();
     }
+    yield_read();
     queue->activeRead = 0;
+    yield_read();
     return rez;
 }
 
@@ -93,38 +118,60 @@ int writeItem(Queue * const queue, void * const item) {
         errno = EINVAL;
         return -1;
     }
+    yield_write();
     if (!queue->write) {
         errno = ENOMEM;
         return -1;
     }
+    yield_write();
     assert(verify(queue));
     if (queue->read == queue->write) {
+        yield_write();
         if (queue->write->writeCursor == queue->write->readCursor) {
+            yield_write();
             queue->write->writeCursor = 0;
+            yield_write();
             queue->write->readCursor = 0;
         }
     }
+    yield_write();
     if (queue->write->writeCursor < queue->write->size) {
+        yield_write();
         queue->write->items[queue->write->writeCursor] = item;
+        yield_write();
         ++queue->write->writeCursor;
+        yield_write();
         if (!queue->read) {
+            yield_write();
             queue->read = queue->write;
+            yield_write();
         }
         return 0;
     }
+    yield_write();
     if (queue->writeHead == queue->read || queue->writeHead == queue->write) {
         errno = ENOMEM;
         return -1;
     }
+    yield_write();
     register QueueSector * const tmp = queue->writeHead;
+    yield_write();
     queue->writeHead = tmp->nextSector;
+    yield_write();
     tmp->nextSector = NULL;
+    yield_write();
     tmp->writeCursor = 0;
+    yield_write();
     tmp->readCursor = 0;
+    yield_write();
     tmp->items[0] = item;
+    yield_write();
     tmp->writeCursor = 1;
+    yield_write();
     queue->write->nextSector = tmp;
+    yield_write();
     queue->write = tmp;
+    yield_write();
     return 0;
 }
 
@@ -133,22 +180,34 @@ QueueSector * recoverSector(Queue * const queue) {
         errno = EINVAL;
         return NULL;
     }
+    yield_write();
     assert(verify(queue));
     if (!queue->writeHead) return NULL;
+    yield_write();
     if (!queue->read
             || (queue->read == queue->writeHead
                 && queue->writeHead == queue->write
                 && queue->read->readCursor == queue->read->writeCursor)) {
+        yield_write();
         queue->read = NULL;
+        yield_write();
         if (queue->activeRead) return NULL;
+        yield_write();
         register QueueSector * const tmp = queue->writeHead;
+        yield_write();
         queue->writeHead = queue->write = NULL;
+        yield_write();
         return tmp;
     }
+    yield_write();
     if (queue->writeHead == queue->read) return NULL;
+    yield_write();
     register QueueSector * const tmp = queue->writeHead;
+    yield_write();
     queue->writeHead = tmp->nextSector;
+    yield_write();
     tmp->nextSector = NULL;
+    yield_write();
     return tmp;
 }
 
@@ -166,9 +225,14 @@ int submitSector(Queue * const queue, void * const mem, size_t const size) {
     tmpSize[0] = tmpCount;
     register QueueSector * const tmp = (QueueSector *)mem;
     tmp->readCursor = tmp->writeCursor = tmp->size;
+    yield_write();
     tmp->nextSector = queue->writeHead;
+    yield_write();
     queue->writeHead = tmp;
+    yield_write();
     if (!tmp->nextSector) queue->write = tmp;
+    yield_write();
     if (!queue->read) queue->read = queue->write;
+    yield_write();
     return 0;
 }
