@@ -19,7 +19,6 @@ along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <stddef.h>
 
 #include "TransThread.h"
 
