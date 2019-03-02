@@ -31,21 +31,22 @@ typedef struct QueueSector{
     void * volatile items[];
 } QueueSector;
 
-static void *readItemInternal(Queue * const queue) {
-    register QueueSector * const tmpRead = queue->read;
-    if (!tmpRead) return NULL;
-    if (tmpRead->readCursor < tmpRead->writeCursor)
-        return tmpRead->items[tmpRead->readCursor++];
-    if (tmpRead->readCursor < tmpRead->size) return NULL;
-    if (!tmpRead->nextSector) return NULL;
-    queue->read = tmpRead->nextSector;
-    return readItemInternal(queue);
-}
-
 void * readItem(Queue * const queue) {
     if (!queue || !queue->read) return NULL;
     queue->activeRead = 1;
-    register void * rez = readItemInternal(queue);
+    register void * rez = NULL;
+    register QueueSector * tmpRead = queue->read;
+    while (tmpRead) {
+        if (tmpRead->readCursor < tmpRead->writeCursor) {
+            rez = tmpRead->items[tmpRead->readCursor];
+            ++tmpRead->readCursor;
+            break;
+        }
+        if (tmpRead->readCursor < tmpRead->size) break;
+        if (!tmpRead->nextSector) break;
+        queue->read = tmpRead->nextSector;
+        tmpRead = queue->read;
+    }
     queue->activeRead = 0;
     return rez;
 }
