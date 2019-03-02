@@ -11,10 +11,12 @@ struct coro_stack stack;
 const int theLimit = 1000000;
 
 void yield_read() {
-    if (rand() & 1) coro_transfer(&readTask, &writeTask);
+    if (rand() & 8)
+        coro_transfer(&readTask, &writeTask);
 }
 void yield_write() {
-    if (rand() & 1) coro_transfer(&writeTask, &readTask);
+    if (rand() & 4)
+        coro_transfer(&writeTask, &readTask);
 }
 
 Queue queue = {NULL, NULL, NULL, 0};
