@@ -106,8 +106,11 @@ int writeItem(Queue * const queue, void * const item) {
         }
     }
     if (queue->write->writeCursor < queue->write->size) {
-        queue->write->items[queue->write->writeCursor++] = item;
-        if (!queue->read) queue->read = queue->write;
+        queue->write->items[queue->write->writeCursor] = item;
+        ++queue->write->writeCursor;
+        if (!queue->read) {
+            queue->read = queue->write;
+        }
         return 0;
     }
     if (queue->writeHead == queue->read || queue->writeHead == queue->write) {
@@ -119,9 +122,11 @@ int writeItem(Queue * const queue, void * const item) {
     tmp->nextSector = NULL;
     tmp->writeCursor = 0;
     tmp->readCursor = 0;
+    tmp->items[0] = item;
+    tmp->writeCursor = 1;
     queue->write->nextSector = tmp;
     queue->write = tmp;
-    return writeItem(queue, item);
+    return 0;
 }
 
 QueueSector * recoverSector(Queue * const queue) {
