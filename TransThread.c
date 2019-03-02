@@ -166,7 +166,7 @@ int submitSector(Queue * const queue, void * const mem, size_t const size) {
     register int * const tmpSize = (int *)mem;
     tmpSize[0] = tmpCount;
     register QueueSector * const tmp = (QueueSector *)mem;
-    tmp->readCursor = tmp->writeCursor = 0;
+    tmp->readCursor = tmp->writeCursor = tmp->size;
     tmp->nextSector = queue->writeHead;
     queue->writeHead = tmp;
     if (!tmp->nextSector) queue->write = tmp;
