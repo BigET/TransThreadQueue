@@ -1,3 +1,4 @@
+#include<stddef.h>
 /*
 Copyright (C) 2007-2019 Eduard Timotei BUDULEA
 
