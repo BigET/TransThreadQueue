@@ -1,6 +1,17 @@
 # TransThreadQueue
 A queue that passes info from one thread to another without locks.
 
+# To use the queue.
+
+Just include the TransThread.h and add TransThread.c to your project.
+
+# To run the test.
+
+```
+make test
+./test
+```
+
 # A little theory.
 
 What are the axioms that this inter thread communication relies?
