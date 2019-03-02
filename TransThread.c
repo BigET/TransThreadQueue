@@ -65,28 +65,27 @@ bool verifyLoop(StackItem const * const si) {
 }
 
 bool verify(Queue const * const queue) {
-    if (!queue) return false;
+    assert(queue);
     if (!queue->writeHead && !queue->write && !queue->read) return true;
-    if (!queue->read && queue->writeHead != queue->write) return false;
-    if (!queue->writeHead) return false;
-    if (!queue->write) return false;
-    if (queue->write->nextSector) return false;
+    assert(queue->read || queue->writeHead == queue->write);
+    assert(queue->writeHead);
+    assert(queue->write);
+    assert(NULL == queue->write->nextSector);
     StackItem const end = {queue->writeHead, NULL};
-    if (!verifyLoop(&end)) return false;
-    if (queue->writeHead == queue->write
-            && queue->read && queue->read != queue->write) return false;
+    assert(verifyLoop(&end));
+    assert(queue->writeHead != queue->write
+            || !queue->read || queue->read == queue->write);
     register QueueSector const * qs = queue->writeHead;
     if (queue->read) {
         for (;qs != queue->read; qs = qs->nextSector)
-            if (qs->readCursor != qs->size || qs->writeCursor != qs->size
-                    || !qs->nextSector)
-                return false;
+            assert(qs->readCursor == qs->size && qs->writeCursor == qs->size
+                    && qs->nextSector);
         for (; qs != queue->write; qs = qs->nextSector)
-            if (qs->writeCursor != qs->size || qs->readCursor > qs->size
-                    || !qs->nextSector)
-                return false;
+            assert(qs->writeCursor == qs->size && qs->readCursor <= qs->size
+                    && qs->nextSector);
     }
-    return qs->readCursor <= qs->writeCursor && qs->writeCursor <= qs->size;
+    assert(qs->readCursor <= qs->writeCursor && qs->writeCursor <= qs->size);
+    return true;
 }
 
 int writeItem(Queue * const queue, void * const item) {
